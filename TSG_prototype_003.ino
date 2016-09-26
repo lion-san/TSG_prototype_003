@@ -40,6 +40,8 @@
 #define SENTENCES_BUFLEN      82        // GPSのメッセージデータバッファの個数
 
 
+#define MAX_FILES_DIGIT = 5             //5桁
+
 #define RESTRICT_PITCH // Comment out to restrict roll to ±90deg instead - please read: http://www.freescale.com/files/sensors/doc/app_note/AN3461.pdf 
 
 //-------------------------------------------------------------------------
@@ -49,8 +51,8 @@ LSM9DS1 imu;
 
 //###############################################
 //MicroSD 
-const int chipSelect = 4;//Arduino UNO
-//const int chipSelect = 10;//Arduino Micro
+//const int chipSelect = 4;//Arduino UNO
+const int chipSelect = 10;//Arduino Micro
 //###############################################
 
 const int tact_switch = 7;//タクトスイッチ
@@ -134,13 +136,14 @@ void setup(void) {
 }
 
 /**
+ * 　==================================================================================================================================================
  * loop
  * ずっと繰り返される関数（何秒周期？）
  * 【概要】
  * 　10msでセンサーデータをサンプリング。
  * 　記録用に、100ms単位でデータ化。
  * 　蓄積したデータをまとめて、1000ms単位でSDカードにデータを出力する。
- * 　
+ * 　==================================================================================================================================================
  */
 void loop(void) {
 
@@ -260,6 +263,7 @@ void loop(void) {
 }
 
 
+//==================================================================================================================================================
 
 
 /**
@@ -268,19 +272,35 @@ void loop(void) {
 void sdcardOpen()
 {
 
-  String file = getDateFromGps();
-  file += ".txt";
-  Serial.println(file);
 
-  char _dataFileName[file.length()+1];
-  file.toCharArray(_dataFileName, sizeof(_dataFileName));
+  // ファイル名決定
+  String s;
+  int fileNum = 0;
+  char fileName[16];
+  
+  while(1){
+    s = "LOG";
+    if (fileNum < 10) {
+      s += "00";
+    } else if(fileNum < 100) {
+      s += "0";
+    }
+    s += fileNum;
+    s += ".TXT";
+    s.toCharArray(fileName, 16);
+    if(!SD.exists(fileName)) break;
+    fileNum++;
+  }
 
-Serial.println(sizeof(_dataFileName));
-Serial.println(_dataFileName);
 
-  dataFile = SD.open(_dataFileName, FILE_WRITE);
+  dataFile = SD.open(fileName, FILE_WRITE);
 
-  sdOpened = true;
+  if(dataFile){
+    Serial.println(fileName);
+    sdOpened = true;
+  }
+  else
+    Serial.println("fileError");
 
 }
 
@@ -540,103 +560,6 @@ void getGpsInfo()
     }
 }
 
-
-/**
- * getDateFromGps
- */
-String getDateFromGps()
-{
-  
-  String datetime = "";
-
-  while(1){
-
-    //Get Date Time from GPS
-    //▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-    char dt = 0 ;
-
-      // センテンスデータが有るなら処理を行う
-      if (g_gps.available()) {
-
-          // 1バイト読み出す
-          dt = g_gps.read() ;
-          //Serial.write(dt);
-
-          //Serial.write(dt);//Debug ALL
-          // センテンスの開始
-          if (dt == '$') SentencesNum = 0 ;
-          
-          if (SentencesNum >= 0) {
-            
-            // センテンスをバッファに溜める
-            SentencesData[SentencesNum] = dt ;
-            SentencesNum++ ;
-               
-            // センテンスの最後(LF=0x0Aで判断)
-            if (dt == 0x0a || SentencesNum >= SENTENCES_BUFLEN) {
-      
-              SentencesData[SentencesNum] = '\0' ;
-      
-              //GPS情報の取得
-              datetime = getGpsDateTime();
-
-              if(datetime.length() == 13)
-                return datetime;
-
-            }
-          }
-      }
-  }
-
-}
-
-
-/**
- * getGpsDateTime
- */
-String getGpsDateTime()
-{
-    int i, c;
-
-    String datetime = "";
-  
-    
-    //$1ヘッダが一致
-    if( strncmp((char *)SentencesData, head, 6) == 0 )
-    {
-
-      //コンマカウント初期化
-      c = 1; 
-
-      // センテンスの長さだけ繰り返す
-      for (i=0 ; i<SentencesNum; i++) {
-        if (SentencesData[i] == ','){
-          
-            c++ ; // 区切り文字を数える
-    
-            if ( c == 2 ) {
-                 //Serial.println(F("----------------------------"));
-                // Serial.println((char *)SentencesData);
-                 //Serial.print(F("Time:"));
-                 //Serial.println(readDataUntilComma(i+1));
-                 datetime = readDataUntilComma(i+1);
-                 continue;
-            }
-            else if ( c == 10 ) {
-                // Serial.println((char *)SentencesData);
-                 //Serial.print(F("Date:"));
-                 //Serial.println(readDataUntilComma(i+1));
-                 datetime = "_" +  datetime.substring(0, 6);
-                 datetime = readDataUntilComma(i+1) + datetime;
-                 continue;
-            }
-        }
-      }
-      
-    }
-
-    return datetime;
-}
 
 
 /**

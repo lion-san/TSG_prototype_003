@@ -82,7 +82,6 @@ byte SentencesData[SENTENCES_BUFLEN] ;  // GPSのセンテンスデータバッ�
 boolean isReaded;                       //GPSの読み込みが完了したかどうか
 String gpsData;                         //GPSの読み込みが完了データ
 File dataFile;                          //SD CARD
-boolean sdOpened = false;
 //======================================================
 
 void setup(void) {
@@ -178,7 +177,7 @@ void loop(void) {
   if(!switchIs){ //falseなら、ループする
     digitalWrite(13, 0);
 
-    if (sdOpened) {
+    if (dataFile) {
       sdcardClose();
     }
     else{
@@ -189,7 +188,7 @@ void loop(void) {
   else{
     digitalWrite(13, 1);
 
-    if (sdOpened) {
+    if (dataFile) {
       ;
     }
     else{
@@ -260,43 +259,55 @@ void loop(void) {
 }
 
 
-
-
 /**
- * sdcardOpen
+ * getDateFromGps
  */
-void sdcardOpen()
+String getDateFromGps()
 {
+  
+  String datetime = "";
 
-  String file = getDateFromGps();
-  file += ".txt";
-  Serial.println(file);
+  while(1){
 
-  char _dataFileName[file.length()+1];
-  file.toCharArray(_dataFileName, sizeof(_dataFileName));
+    //GPS
+    //▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+    char dt = 0 ;
 
-Serial.println(sizeof(_dataFileName));
-Serial.println(_dataFileName);
+      // センテンスデータが有るなら処理を行う
+      if (g_gps.available()) {
 
-  dataFile = SD.open(_dataFileName, FILE_WRITE);
+          // 1バイト読み出す
+          dt = g_gps.read() ;
+          //Serial.write(dt);
 
-  sdOpened = true;
+          //Serial.write(dt);//Debug ALL
+          // センテンスの開始
+          if (dt == '$') SentencesNum = 0 ;
+          
+          if (SentencesNum >= 0) {
+            
+            // センテンスをバッファに溜める
+            SentencesData[SentencesNum] = dt ;
+            SentencesNum++ ;
+               
+            // センテンスの最後(LF=0x0Aで判断)
+            if (dt == 0x0a || SentencesNum >= SENTENCES_BUFLEN) {
+      
+              SentencesData[SentencesNum] = '\0' ;
+      
+              //GPS情報の取得
+              datetime = getGpsDateTime();
+              Serial.println(datetime);
+
+              if(datetime.length == 16)
+                return datetime;
+
+            }
+          }
+      }
+  }
 
 }
-
-/**
- * sdcardClose
- */
-void sdcardClose()
-{
-
-    dataFile.close();
-    Serial.println(F("SD Closed."));
-    sdOpened = false;
-
-}
-
-
 
 
 /**
@@ -328,6 +339,26 @@ void writeDataToSdcard()
 }
 
 
+
+/**
+ * sdcardOpen
+ */
+void sdcardOpen()
+{
+
+  dataFile = SD.open("datalog.txt", FILE_WRITE);
+
+}
+
+/**
+ * sdcardClose
+ */
+void sdcardClose()
+{
+
+    dataFile.close();
+
+}
 
 
 /**
@@ -542,64 +573,14 @@ void getGpsInfo()
 
 
 /**
- * getDateFromGps
- */
-String getDateFromGps()
-{
-  
-  String datetime = "";
-
-  while(1){
-
-    //Get Date Time from GPS
-    //▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-    char dt = 0 ;
-
-      // センテンスデータが有るなら処理を行う
-      if (g_gps.available()) {
-
-          // 1バイト読み出す
-          dt = g_gps.read() ;
-          //Serial.write(dt);
-
-          //Serial.write(dt);//Debug ALL
-          // センテンスの開始
-          if (dt == '$') SentencesNum = 0 ;
-          
-          if (SentencesNum >= 0) {
-            
-            // センテンスをバッファに溜める
-            SentencesData[SentencesNum] = dt ;
-            SentencesNum++ ;
-               
-            // センテンスの最後(LF=0x0Aで判断)
-            if (dt == 0x0a || SentencesNum >= SENTENCES_BUFLEN) {
-      
-              SentencesData[SentencesNum] = '\0' ;
-      
-              //GPS情報の取得
-              datetime = getGpsDateTime();
-
-              if(datetime.length() == 13)
-                return datetime;
-
-            }
-          }
-      }
-  }
-
-}
-
-
-/**
  * getGpsDateTime
  */
-String getGpsDateTime()
+void getGpsDateTime()
 {
     int i, c;
 
-    String datetime = "";
-  
+    String time = "";
+    String date = "";
     
     //$1ヘッダが一致
     if( strncmp((char *)SentencesData, head, 6) == 0 )
@@ -617,17 +598,16 @@ String getGpsDateTime()
             if ( c == 2 ) {
                  //Serial.println(F("----------------------------"));
                 // Serial.println((char *)SentencesData);
-                 //Serial.print(F("Time:"));
-                 //Serial.println(readDataUntilComma(i+1));
-                 datetime = readDataUntilComma(i+1);
+                 Serial.print(F("Time:"));
+                 Serial.println(readDataUntilComma(i+1));
+                 time = new string(readDataUntilComma(i+1));
                  continue;
             }
             else if ( c == 10 ) {
                 // Serial.println((char *)SentencesData);
-                 //Serial.print(F("Date:"));
-                 //Serial.println(readDataUntilComma(i+1));
-                 datetime = "_" +  datetime.substring(0, 6);
-                 datetime = readDataUntilComma(i+1) + datetime;
+                 Serial.print(F("Date:"));
+                 Serial.println(readDataUntilComma(i+1));
+                 date = new string(readDataUntilComma(i+1));
                  continue;
             }
         }
@@ -635,7 +615,7 @@ String getGpsDateTime()
       
     }
 
-    return datetime;
+    return time + date;
 }
 
 

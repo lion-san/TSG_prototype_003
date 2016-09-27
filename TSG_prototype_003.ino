@@ -32,15 +32,10 @@
 //#define PRINT_CALCULATED              //表示用の定義
 //#define DEBUG_GYRO                    //ジャイロスコープの表示
 
-#define DECLINATION -8.58               // Declination (degrees) in Boulder, CO.
-
 
 #define RX 8                            //GPS用のソフトウェアシリアル
 #define TX 9                            //GPS用のソフトウェアシリアル
 #define SENTENCES_BUFLEN      82        // GPSのメッセージデータバッファの個数
-
-
-#define MAX_FILES_DIGIT = 5             //5桁
 
 #define RESTRICT_PITCH // Comment out to restrict roll to ±90deg instead - please read: http://www.freescale.com/files/sensors/doc/app_note/AN3461.pdf 
 
@@ -53,6 +48,9 @@ LSM9DS1 imu;
 //MicroSD 
 //const int chipSelect = 4;//Arduino UNO
 const int chipSelect = 10;//Arduino Micro
+
+File dataFile;                          //SD CARD
+boolean sdOpened = false;
 //###############################################
 
 const int tact_switch = 7;//タクトスイッチ
@@ -83,8 +81,7 @@ int SentencesNum = 0;                   // GPSのセンテンス文字列個数
 byte SentencesData[SENTENCES_BUFLEN] ;  // GPSのセンテンスデータバッファ
 boolean isReaded;                       //GPSの読み込みが完了したかどうか
 String gpsData;                         //GPSの読み込みが完了データ
-File dataFile;                          //SD CARD
-boolean sdOpened = false;
+
 //======================================================
 
 void setup(void) {
@@ -94,7 +91,6 @@ void setup(void) {
 
   //=== SD Card Initialize ====================================
   Serial.print(F("Initializing SD card..."));
-
   // see if the card is present and can be initialized:
   if (!SD.begin(chipSelect)) {
     Serial.println(F("Card failed, or not present"));
@@ -102,12 +98,12 @@ void setup(void) {
     return;
   }
   Serial.println(F("card initialized."));
-
   //=======================================================
 
-  //タクトスイッチ
+  //===タクトスイッチ===========================================
   pinMode(tact_switch, INPUT);
   switchIs = false;
+  //=======================================================
 
   //=== LSM9DS1 Initialize =====================================
   imu.settings.device.commInterface = IMU_MODE_I2C;
@@ -147,18 +143,15 @@ void setup(void) {
  */
 void loop(void) {
 
+  //START switch ============================================
   switch(digitalRead(tact_switch)){
 
    case 0://ボタンを押した
-
           switchOn = true;
-
           break;
 
    case 1://ボタン押していない
-
            if(switchOn){
-
              //すでにOnなら、falseにする
              if(switchIs)
                switchIs = false;
@@ -166,11 +159,8 @@ void loop(void) {
              else
                switchIs = true;
 
-
              switchOn = false;
-            
            }
-
            break;
 
     default:
@@ -180,7 +170,6 @@ void loop(void) {
   //スイッチの判定
   if(!switchIs){ //falseなら、ループする
     digitalWrite(13, 0);
-
     if (sdOpened) {
       sdcardClose();
     }
@@ -191,20 +180,17 @@ void loop(void) {
   }
   else{
     digitalWrite(13, 1);
-
     if (sdOpened) {
       ;
     }
     else{
       sdcardOpen();
     }
-
   }
   //END switch ============================================
   
 
-  //GPS
-  //▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  //GPS MAIN ==========================================================
   char dt = 0 ;
 
   motionData = "";
@@ -214,9 +200,8 @@ void loop(void) {
 
         // 1バイト読み出す
         dt = g_gps.read() ;
-        //Serial.write(dt);
-
         //Serial.write(dt);//Debug ALL
+
         // センテンスの開始
         if (dt == '$') SentencesNum = 0 ;
         
@@ -229,7 +214,7 @@ void loop(void) {
           // センテンスの最後(LF=0x0Aで判断)
           if (dt == 0x0a || SentencesNum >= SENTENCES_BUFLEN) {
     
-            SentencesData[SentencesNum] = '\0' ;
+            SentencesData[SentencesNum] = '\0';
     
             //GPS情報の取得
             //getGpsInfo();
@@ -241,8 +226,6 @@ void loop(void) {
             if ( gpsIsReady() )
             {
                // 有効になったら書込み開始
-               //Serial.print("O:");
-               //Serial.print( (char *)SentencesData );
 
                gpsData = String((char *)SentencesData );
                
@@ -253,13 +236,13 @@ void loop(void) {
                //SDカードへの出力
                writeDataToSdcard();
 
-
                return;
             }
           }
         }
       }
-
+  //GPS MAIN ==========================================================
+  
 }
 
 
@@ -309,7 +292,6 @@ void sdcardOpen()
  */
 void sdcardClose()
 {
-
     dataFile.close();
     Serial.println(F("SD Closed."));
     sdOpened = false;
@@ -457,19 +439,22 @@ float heading = 0;
     Serial.println(roll);
 */
 
+
     Serial.print(F("CalmanFilter: "));
     Serial.print(heading);
     Serial.print(" ");
     Serial.print(kalAngleY);
     Serial.print(" ");
     Serial.println(kalAngleX);
-
+    
+  if(print){
     output += "CalmanFilter:"; 
     output += heading;
     output += " ";
     output += kalAngleY;
     output += " ";
     output += kalAngleX;
+  }
     
   return output;
   
@@ -587,11 +572,11 @@ boolean gpsIsReady()
             if ( c == 3 ) {
                  //次のコンマまでのデータを呼び出し
                  if( strncmp("A", readDataUntilComma(i+1), 1) == 0 ){
-                   Serial.print("O:");
+                   //Serial.print("O:");
                    return true;
                  }
                  else{
-                   Serial.print("X:");
+                   //Serial.print("X:");
                    //Serial.print( (char *)SentencesData );
                    return false;
                  }

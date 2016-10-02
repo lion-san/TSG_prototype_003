@@ -35,7 +35,7 @@
 
 #define RX 8                            //GPS用のソフトウェアシリアル
 #define TX 9                            //GPS用のソフトウェアシリアル
-#define SENTENCES_BUFLEN      82        // GPSのメッセージデータバッファの個数
+#define SENTENCES_BUFLEN      128        // GPSのメッセージデータバッファの個数
 
 #define RESTRICT_PITCH // Comment out to restrict roll to ±90deg instead - please read: http://www.freescale.com/files/sensors/doc/app_note/AN3461.pdf 
 
@@ -220,7 +220,7 @@ void loop(void) {
             //getGpsInfo();
 
             //MotionSensorの値更新
-            updateMotionSensors(false);
+            //updateMotionSensors(false);  //20161002 GPS処理が追いつかない
             
             // センテンスのステータスが"有効"になるまで待つ
             if ( gpsIsReady() )
@@ -318,8 +318,8 @@ void writeDataToSdcard()
     //dataFile.close();
     
     // print to the serial port too:
-    Serial.println(gpsData);
-    Serial.println(motionData);
+    Serial.print(gpsData);
+    //Serial.println(motionData);
     Serial.println(F("================================"));
   }
   // if the file isn't open, pop up an error:
@@ -390,7 +390,7 @@ String printAttitude(boolean print)
   //時間の更新
   double dt = (double)(millis() - time) / 1000; // Calculate delta time  
   time = millis();
-  Serial.print(dt);
+  //Serial.println(dt);
 
 #ifdef RESTRICT_PITCH // Eq. 25 and 26 
   roll  = atan2(accY, accZ) * RAD_TO_DEG;//+++++++++++++++++++++++ 
